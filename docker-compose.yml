@@ -1,36 +1,49 @@
 version: "3.8"
 
 services:
-  db:
-    image: mariadb:latest
-    container_name: mariadb
+  mongo:
+    container_name: mongo-dev
+    image: mongo:4.2
     environment:
-      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
-      - MARIADB_DATABASE=${MARIADB_DATABASE}
-      - MARIADB_USER=${MARIADB_USER}
-      - MARIADB_PASSWORD=${MARIADB_PASSWORD}
+      - MONGO_INITDB_ROOT_USERNAME=${ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${ROOT_PASSWORD}
+      - MONGO_INITDB_DATABASE=${DATABASE}
+    networks:
+      - mongo-compose-network
+    ports:
+      - "27017:27017"
     volumes:
-      - ./mariadb_data:/var/lib/mysql
-    ports:
-      - "3306:3306"
-    networks:
-      - app-network
+      - ./data:/data/db
+      - ./mongod.conf:/etc/mongod.conf
+    command: mongod --config /etc/mongod.conf
 
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin
-    container_name: phpmyadmin
-    environment:
-      - PMA_HOST=${PMA_HOST}
-      - PMA_USER=${PMA_USER}
-      - PMA_PASSWORD=${PMA_PASSWORD}
-      - PMA_PORT=${PMA_PORT}
-    ports:
-      - "8080:80"
+  mongo-express:
+    container_name: mongo-express
+    image: mongo-express
     depends_on:
-      - db
+      - mongo
     networks:
-      - app-network
+      - mongo-compose-network
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=${MONGODB_SERVER}
+      - ME_CONFIG_BASICAUTH_USERNAME=${BASICAUTH_USERNAME}
+      - ME_CONFIG_BASICAUTH_PASSWORD=${BASICAUTH_PASSWORD}
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGODB_ADMINUSERNAME}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGODB_ADMINPASSWORD}
+      - ME_CONFIG_MONGODB_DATABASE=${MONGODB_DATABASE}
+
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./data:/data/db
+      - ./wait-for-it.sh:/app/wait-for-it.sh
+    command:
+      [
+        "sh",
+        "-c",
+        "chmod +x /app/wait-for-it.sh && /app/wait-for-it.sh mongo:27017 -- /docker-entrypoint.sh",
+      ]
 
 networks:
-  app-network:
+  mongo-compose-network:
     driver: bridge
