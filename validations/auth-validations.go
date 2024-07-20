@@ -1,5 +1,7 @@
 package validations
 
+import "go.mongodb.org/mongo-driver/bson/primitive"
+
 type LoginInput struct {
 	Email    string `json:"email" binding:"required" type:"email"`
 	Password string `json:"password" binding:"required"`
@@ -16,5 +18,5 @@ type CreateUserInput struct {
 	Password string `json:"password" binding:"required"`
 }
 type LogoutInput struct {
-	Userid uint `json:"user_id" binding:"required"`
+	Userid primitive.ObjectID `json:"user_id" binding:"required"`
 }
