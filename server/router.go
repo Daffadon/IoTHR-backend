@@ -32,6 +32,15 @@ func NewRouter() *gin.Engine {
 			profile.Use(middleware.CORSMiddleware())
 			user := new(controllers.UserController)
 			profile.GET("", middleware.AuthMiddleware, user.GetProfile)
+			profile.GET("/history", middleware.AuthMiddleware, user.GetHistory)
+		}
+		topic := v1.Group("/topic")
+		{
+			topic.Use(middleware.AuthMiddleware)
+			topicController := new(controllers.TopicController)
+			topic.POST("/create", topicController.CreateTopic)
+			topic.PATCH("/ecg", topicController.UpdateECGPlotTopic)
+			topic.GET("/:id", topicController.GetTopic)
 		}
 	}
 
