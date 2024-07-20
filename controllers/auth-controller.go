@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -87,7 +88,7 @@ func (auth AuthController) Register(ctx *gin.Context) {
 
 func (auth AuthController) Logout(ctx *gin.Context) {
 	userID, _ := ctx.Get("user_id")
-	if err := UserModel.RemoveToken(&validations.LogoutInput{Userid: userID.(uint)}); err != nil {
+	if err := UserModel.RemoveToken(&validations.LogoutInput{Userid: userID.(primitive.ObjectID)}); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		ctx.Abort()
 	}
