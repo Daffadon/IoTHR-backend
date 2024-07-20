@@ -2,10 +2,15 @@ package migrations
 
 import (
 	"IoTHR-backend/db"
-	"IoTHR-backend/models"
+	"fmt"
+	"log"
 )
 
 func Init() {
-	db := db.GetDB()
-	db.AutoMigrate(&models.User{})
+	client := db.GetDB()
+	collection := client.Database("heartrate").Collection("user")
+	if collection == nil {
+		log.Fatal("Failed to create collection")
+	}
+	fmt.Println("Database and collection created successfully")
 }
