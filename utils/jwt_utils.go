@@ -8,22 +8,23 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/joho/godotenv"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Claims struct {
-	UserId uint   `json:"userId"`
-	Role   string `json:"role"`
+	UserId primitive.ObjectID `json:"userId"`
+	Role   string             `json:"role"`
 	jwt.StandardClaims
 }
 
-func GenerateToken(userId uint, role string) (string, error) {
+func GenerateToken(userId primitive.ObjectID, role string) (string, error) {
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
 	jwtKey := []byte(os.Getenv("JWT_SECRET_KEY"))
-	expirationTime := time.Now().Add(30 * time.Minute)
+	expirationTime := time.Now().Add(2 * time.Hour)
 
 	claims := &Claims{
 		UserId: userId,
