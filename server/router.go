@@ -41,8 +41,8 @@ func NewRouter() *gin.Engine {
 			topic.POST("/create", topicController.CreateTopic)
 			topic.PATCH("/ecg", topicController.UpdateECGPlotTopic)
 			topic.GET("/:id", topicController.GetTopic)
+			topic.PATCH("/prediction", topicController.PredictionECGPlot)
 		}
 	}
-
 	return router
 }

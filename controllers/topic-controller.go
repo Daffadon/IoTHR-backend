@@ -48,12 +48,8 @@ func (t TopicController) GetTopic(ctx *gin.Context) {
 	userId, _ := ctx.Get("user_id")
 	topicId, err := primitive.ObjectIDFromHex(ctx.Param("id"))
 	if err == nil {
-		input := validations.GetTopicByIdInput{
-			TopicID: topicId,
-			UserID:  userId.(primitive.ObjectID),
-		}
 		retrievedData := &validations.GetTopicByIdInput{
-			TopicID: input.TopicID,
+			TopicID: topicId,
 			UserID:  userId.(primitive.ObjectID),
 		}
 		topic, err := TopicModel.GetTopicById(retrievedData)
@@ -90,6 +86,31 @@ func (t TopicController) UpdateECGPlotTopic(ctx *gin.Context) {
 			return
 		}
 		ctx.JSON(http.StatusOK, gin.H{"message": "success"})
+		ctx.Abort()
+		return
+	}
+	ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+}
+
+func (t TopicController) PredictionECGPlot(ctx *gin.Context) {
+	var input validations.TopicId
+	userId, ok := ctx.Get("user_id")
+	if ok {
+		if err := ctx.ShouldBindJSON(&input); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.Abort()
+		}
+		dataToPredict := &validations.ECGPredictionInput{
+			TopicID: input.TopicID,
+			UserID:  userId.(primitive.ObjectID),
+		}
+		err := TopicModel.ECGPrediction(dataToPredict)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.Abort()
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"message": "Success"})
 		ctx.Abort()
 		return
 	}
