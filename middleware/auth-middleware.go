@@ -7,7 +7,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
-	
+
+var UserModels = new(models.User)
+
 func AuthMiddleware(ctx *gin.Context) {
 	token := ctx.GetHeader("Authorization")
 	if token != "" {
@@ -18,7 +20,7 @@ func AuthMiddleware(ctx *gin.Context) {
 			ctx.Abort()
 			return
 		}
-		loggedOut := models.IsLoggedOut(token)
+		loggedOut := UserModels.IsLoggedOut(token)
 		if !loggedOut {
 			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized!"})
 			ctx.Abort()
