@@ -24,7 +24,7 @@ func GenerateToken(userId primitive.ObjectID, role string) (string, error) {
 	}
 
 	jwtKey := []byte(os.Getenv("JWT_SECRET_KEY"))
-	expirationTime := time.Now().Add(2 * time.Hour)
+	expirationTime := time.Now().Add(24 * time.Hour)
 
 	claims := &Claims{
 		UserId: userId,
