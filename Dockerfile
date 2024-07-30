@@ -9,4 +9,5 @@ RUN go mod download && go mod verify
 
 COPY . .
 RUN go build -o app
+EXPOSE 8000
 CMD ["./app"]

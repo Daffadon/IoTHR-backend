@@ -1,20 +1,20 @@
 version: "3.8"
 
 services:
-  app:
-    container_name: backend
-    build:
-      context: .
-      dockerfile: Dockerfile
-    env_file:
-      - ".env"
-    networks:
-      - backend-network
-    ports:
-      - "8000:8000"
-    depends_on:
-      - mongo
-      - mongo-express
+  # app:
+  #   container_name: backend
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - ".env"
+  #   networks:
+  #     - backend-network
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     - mongo
+  #     - mongo-express
 
   mongo:
     container_name: mongo-dev
@@ -25,6 +25,8 @@ services:
       - MONGO_INITDB_DATABASE=${DATABASE}
     networks:
       - backend-network
+    ports:
+      - "27017:27017"
     volumes:
       - ./backend-data:/data/db
       - ./mongod.conf:/etc/mongod.conf
