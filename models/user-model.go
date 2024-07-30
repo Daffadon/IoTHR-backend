@@ -122,7 +122,7 @@ func (u User) RemoveToken(input *validations.LogoutInput) error {
 	return nil
 }
 
-func IsLoggedOut(token string) bool {
+func (u User) IsLoggedOut(token string) bool {
 	collection := db.GetUserCollection()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -136,7 +136,7 @@ func IsLoggedOut(token string) bool {
 	return count > 0
 }
 
-func UpdateTopicID(userid primitive.ObjectID, topicid primitive.ObjectID) error {
+func (u User) UpdateTopicID(userid primitive.ObjectID, topicid primitive.ObjectID) error {
 	userCollection := db.GetUserCollection()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -150,5 +150,4 @@ func UpdateTopicID(userid primitive.ObjectID, topicid primitive.ObjectID) error 
 	}
 	return nil
 }
-
-
+	
