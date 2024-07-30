@@ -3,6 +3,7 @@ package controllers
 import (
 	"IoTHR-backend/models"
 	"IoTHR-backend/validations"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -31,12 +32,12 @@ func (t TopicController) CreateTopic(ctx *gin.Context) {
 			ctx.Abort()
 			return
 		}
-		err = models.UpdateTopicID(userId.(primitive.ObjectID), topic.ID)
+		err = UserModel.UpdateTopicID(userId.(primitive.ObjectID), topic.ID)
 		if err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			ctx.Abort()
 			return
-		}
+		}		
 		ctx.JSON(http.StatusOK, gin.H{"topicId": topic.ID})
 		ctx.Abort()
 		return
@@ -93,22 +94,40 @@ func (t TopicController) UpdateECGPlotTopic(ctx *gin.Context) {
 }
 
 func (t TopicController) PredictionECGPlot(ctx *gin.Context) {
-	var input validations.TopicId
+	var input validations.Prediction
 	userId, ok := ctx.Get("user_id")
 	if ok {
 		if err := ctx.ShouldBindJSON(&input); err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			ctx.Abort()
 		}
-		dataToPredict := &validations.ECGPredictionInput{
-			TopicID: input.TopicID,
-			UserID:  userId.(primitive.ObjectID),
+		newRecordTime := &validations.UpdateRecordTimeVal{
+			UserID:     userId.(primitive.ObjectID),
+			TopicID:    input.TopicID,
+			RecordTime: input.RecordTime,
 		}
-		err := TopicModel.ECGPrediction(dataToPredict)
+		err := TopicModel.UpdateRecordTime(newRecordTime)
 		if err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			ctx.Abort()
 			return
+		}
+
+		feature := []string{"RR-Interval", "Morphology", "Wavelet"}
+		for _, f := range feature {
+			dataToPredict := &validations.ECGPredictionInput{
+				TopicID: input.TopicID,
+				UserID:  userId.(primitive.ObjectID),
+				Feature: f,
+			}
+			prediction, err := TopicModel.ECGPrediction(dataToPredict)
+			if err != nil {
+				log.Fatal(err)
+			}
+			_, err = PredictionModel.CreatePrediction(prediction)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 		ctx.JSON(http.StatusOK, gin.H{"message": "Success"})
 		ctx.Abort()
