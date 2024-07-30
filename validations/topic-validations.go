@@ -27,14 +27,23 @@ type GetTopicByIdInput struct {
 	UserID  primitive.ObjectID `json:"userId" bson:"userId"`
 }
 
-type TopicId struct {
-	TopicID primitive.ObjectID `json:"topicId" bson:"topicId"`
+type Prediction struct {
+	TopicID    primitive.ObjectID `json:"topicId" bson:"topicId"`
+	RecordTime string             `json:"recordTime" bson:"recordTime"`
+	Feature    string             `json:"feature" bson:"feature"`
+}
+type UpdateRecordTimeVal struct {
+	UserID     primitive.ObjectID `json:"userId" bson:"userId"`
+	TopicID    primitive.ObjectID `json:"topicId" bson:"topicId"`
+	RecordTime string             `json:"recordTime" bson:"recordTime"`
 }
 type ECGPredictionInput struct {
 	TopicID primitive.ObjectID `json:"topicId" bson:"topicId"`
 	UserID  primitive.ObjectID `json:"userId" bson:"userId"`
+	Feature string             `json:"feature" bson:"feature"`
 }
 
 type Payload struct {
 	ECGPlot []float64 `json:"ecg_plot" bson:"ecg_plot"`
+	Feature string    `json:"feature" bson:"feature"`
 }
