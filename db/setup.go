@@ -3,7 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
-		"log"
+	"log"
 	"os"
 	"time"
 
@@ -32,27 +32,38 @@ func Init() {
 	if err != nil {
 		log.Fatalf("Failed to ping MongoDB: %v", err)
 	}
-
 	fmt.Println("Connected to MongoDB!")
 
 	adminDB := client.Database("heartrate")
 	newUser := os.Getenv("APP_DB_USERNAME")
 	password := os.Getenv("APP_DB_PASSWORD")
 
-	result := adminDB.RunCommand(context.TODO(), bson.D{
-		{Key: "createUser", Value: newUser},
-		{Key: "pwd", Value: password},
-		{Key: "roles", Value: bson.A{
-			bson.D{{Key: "role", Value: "readWrite"}, {Key: "db", Value: os.Getenv("DATABASE")}},
-			bson.D{{Key: "role", Value: "dbAdmin"}, {Key: "db", Value: os.Getenv("DATABASE")}},
-		}},
-	})
-	if err = result.Err(); err != nil {
-		log.Fatalf("Failed to create user: %v", err)
+	checkUserCommand := bson.D{
+		{Key: "usersInfo", Value: newUser},
 	}
-	fmt.Println("User created successfully!")
 
-	client.Disconnect(context.Background())
+	var userResult bson.M
+	if err := adminDB.RunCommand(context.Background(), checkUserCommand).Decode(&userResult); err != nil {
+		log.Fatalf("Failed to check user: %v", err)
+	}
+
+	users, ok := userResult["users"].(bson.A)
+	if ok && len(users) > 0 {
+		log.Default().Println("User already exists!")
+	} else if len(users) == 0 {
+		result := adminDB.RunCommand(context.TODO(), bson.D{
+			{Key: "createUser", Value: newUser},
+			{Key: "pwd", Value: password},
+			{Key: "roles", Value: bson.A{
+				bson.D{{Key: "role", Value: "readWrite"}, {Key: "db", Value: os.Getenv("DATABASE")}},
+				bson.D{{Key: "role", Value: "dbAdmin"}, {Key: "db", Value: os.Getenv("DATABASE")}},
+			}},
+		})
+		if err = result.Err(); err != nil {
+			log.Fatalf("Failed to create user: %v", err)
+		}
+		fmt.Println("User created successfully!")
+	}
 
 	MONGO_URI := os.Getenv("MONGO_URI")
 	hrClientOptions := options.Client().ApplyURI(MONGO_URI)
@@ -69,6 +80,9 @@ func GetUserCollection() *mongo.Collection {
 }
 func GetTopicCollection() *mongo.Collection {
 	return db.Database("heartrate").Collection("topic")
+}
+func GetPredictionCollection() *mongo.Collection {
+	return db.Database("heartrate").Collection("prediction")
 }
 
 func GetDB() *mongo.Client {
