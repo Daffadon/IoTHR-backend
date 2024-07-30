@@ -29,7 +29,6 @@ func NewRouter() *gin.Engine {
 		}
 		profile := v1.Group("/profile")
 		{
-			profile.Use(middleware.CORSMiddleware())
 			user := new(controllers.UserController)
 			profile.GET("", middleware.AuthMiddleware, user.GetProfile)
 			profile.GET("/history", middleware.AuthMiddleware, user.GetHistory)
@@ -42,6 +41,13 @@ func NewRouter() *gin.Engine {
 			topic.PATCH("/ecg", topicController.UpdateECGPlotTopic)
 			topic.GET("/:id", topicController.GetTopic)
 			topic.PATCH("/prediction", topicController.PredictionECGPlot)
+		}
+		prediction := v1.Group("/prediction")
+		{
+			prediction.Use(middleware.AuthMiddleware)
+			predictionController := new(controllers.PredictionController)
+			prediction.GET(":id", predictionController.GetPredictionList)
+			prediction.GET("id/:id", predictionController.GetPredictionById)
 		}
 	}
 	return router
