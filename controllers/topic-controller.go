@@ -37,7 +37,7 @@ func (t TopicController) CreateTopic(ctx *gin.Context) {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			ctx.Abort()
 			return
-		}		
+		}
 		ctx.JSON(http.StatusOK, gin.H{"topicId": topic.ID})
 		ctx.Abort()
 		return
@@ -65,6 +65,113 @@ func (t TopicController) GetTopic(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 	ctx.Abort()
+}
+
+func (t TopicController) GetTopicForDoctor(ctx *gin.Context) {
+	topicId, err := primitive.ObjectIDFromHex(ctx.Param("topicId"))
+	if err == nil {
+		topic, err := TopicModel.GetTopicByIdForDoctor(&topicId)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.Abort()
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"topic": topic})
+		ctx.Abort()
+		return
+	}
+	ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	ctx.Abort()
+}
+
+func (t TopicController) UpdateTopicAnalyze(ctx *gin.Context) {
+	topicId, err := primitive.ObjectIDFromHex(ctx.Param("topicId"))
+	if err == nil {
+		var updatedTopic validations.UpdateAnalyzeData
+		if err := ctx.ShouldBindJSON(&updatedTopic); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			return
+		}
+
+		updatedData := validations.UpdateAnalyzeData{
+			TopicID:  topicId,
+			Analyzed: updatedTopic.Analyzed,
+		}
+
+		err := TopicModel.UpdateTopicAnalyzeData(&updatedData)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.Abort()
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"message": "success"})
+		ctx.Abort()
+		return
+	}
+	ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid topic"})
+}
+
+func (t TopicController) UpdateTopicAnalyzeComment(ctx *gin.Context) {
+	topicId, err := primitive.ObjectIDFromHex(ctx.Param("topicId"))
+	if err == nil {
+		var updatedTopic validations.UpdateAnalyzeCommentInput
+		if err := ctx.ShouldBindJSON(&updatedTopic); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			return
+		}
+		userID, _ := ctx.Get("user_id")
+		user, err := UserModel.GetUserByID(userID.(primitive.ObjectID))
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.Abort()
+			return
+		}
+
+		updatedData := validations.UpdateAnalyzeComment{
+			TopicID:    topicId,
+			DoctorID:   userID.(primitive.ObjectID),
+			DoctorName: user.Fullname,
+			Comment:    []string{updatedTopic.Comment},
+		}
+
+		err = TopicModel.UpdateTopicAnalyzeComment(&updatedData)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.Abort()
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"message": "success"})
+		ctx.Abort()
+		return
+	}
+	ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid topic"})
+}
+
+func (t TopicController) DeleteTopicAnalyzeComment(ctx *gin.Context) {
+	topicId, err := primitive.ObjectIDFromHex(ctx.Param("topicId"))
+	userId, _ := ctx.Get("user_id")
+	if err == nil {
+		var deletedTopic validations.DeleteAnalyzeCommentInput
+		if err := ctx.ShouldBindJSON(&deletedTopic); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			return
+		}
+		topicToDelete := validations.DeleteAnalyzeComment{
+			TopicID:      topicId,
+			CommentIndex: deletedTopic.CommentIndex,
+			DoctorID:     userId.(primitive.ObjectID),
+		}
+		err := TopicModel.DeleteTopicAnalyzeComment(&topicToDelete)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.Abort()
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"message": "success"})
+		ctx.Abort()
+		return
+	}
+	ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid topic"})
 }
 
 func (t TopicController) UpdateECGPlotTopic(ctx *gin.Context) {
