@@ -9,13 +9,15 @@ type LoginInput struct {
 type RegisterInput struct {
 	Fullname        string `json:"fullname" binding:"required"`
 	Email           string `json:"email" binding:"required" type:"email"`
+	BirthDate       string `json:"birthDate" binding:"required"`
 	Password        string `json:"password" binding:"required"`
 	ConfirmPassword string `json:"confirmPassword" binding:"required"`
 }
 type CreateUserInput struct {
-	Email    string `json:"email" binding:"required" type:"email"`
-	Fullname string `json:"fullname" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Email     string `json:"email" binding:"required" type:"email"`
+	BirthDate string `json:"birthDate" binding:"required"`
+	Fullname  string `json:"fullname" binding:"required"`
+	Password  string `json:"password" binding:"required"`
 }
 type LogoutInput struct {
 	Userid primitive.ObjectID `json:"user_id" binding:"required"`

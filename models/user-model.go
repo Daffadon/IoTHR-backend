@@ -11,16 +11,18 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type User struct {
-	ID       primitive.ObjectID   `json:"id,omitempty" bson:"_id,omitempty"`
-	Email    string               `json:"email" bson:"email"`
-	Fullname string               `json:"fullname" bson:"fullname"`
-	Password string               `json:"password" bson:"password"`
-	Role     string               `json:"role" bson:"role"`
-	Token    string               `json:"token,omitempty" bson:"token,omitempty"`
-	TopicID  []primitive.ObjectID `json:"topicId,omitempty" bson:"topicId,omitempty"`
+	ID        primitive.ObjectID   `json:"id,omitempty" bson:"_id,omitempty"`
+	Email     string               `json:"email" bson:"email"`
+	Fullname  string               `json:"fullname" bson:"fullname"`
+	BirthDate string               `json:"birthDate" bson:"birthDate"`
+	Password  string               `json:"password" bson:"password"`
+	Role      string               `json:"role" bson:"role"`
+	Token     string               `json:"token,omitempty" bson:"token,omitempty"`
+	TopicID   []primitive.ObjectID `json:"topicId,omitempty" bson:"topicId,omitempty"`
 }
 
 func (u User) CreateUser(input *validations.CreateUserInput) (*User, error) {
@@ -28,7 +30,7 @@ func (u User) CreateUser(input *validations.CreateUserInput) (*User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	user := User{Fullname: input.Fullname, Email: input.Email, Password: input.Password, Role: "user"}
+	user := User{Fullname: input.Fullname, Email: input.Email, BirthDate: input.BirthDate, Password: input.Password, Role: "user"}
 
 	filter := bson.M{"email": input.Email}
 	var existingUser User
@@ -52,6 +54,30 @@ func (u User) CreateUser(input *validations.CreateUserInput) (*User, error) {
 
 	user.ID = insertedID
 	return &user, nil
+}
+
+func (u User) GetUsers() (*[]User, error) {
+	userCollection := db.GetUserCollection()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	projection := bson.M{
+		"email":     1,
+		"fullname":  1,
+		"birthDate": 1,
+		"_id":       1,
+	}
+
+	cursor, err := userCollection.Find(ctx, bson.M{"role": "user"}, options.Find().SetProjection(projection))
+	if err != nil {
+		return nil, fmt.Errorf("error getting users: %v", err)
+	}
+
+	var users []User
+	if err = cursor.All(ctx, &users); err != nil {
+		return nil, fmt.Errorf("error decoding users: %v", err)
+	}
+	return &users, nil
 }
 
 func (u User) GetUser(input *validations.LoginInput) (*User, error) {
@@ -150,4 +176,3 @@ func (u User) UpdateTopicID(userid primitive.ObjectID, topicid primitive.ObjectI
 	}
 	return nil
 }
-	

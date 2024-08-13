@@ -72,9 +72,10 @@ func (auth AuthController) Register(ctx *gin.Context) {
 	}
 
 	createdUser := validations.CreateUserInput{
-		Fullname: input.Fullname,
-		Email:    input.Email,
-		Password: input.Password,
+		Fullname:  input.Fullname,
+		Email:     input.Email,
+		BirthDate: input.BirthDate,
+		Password:  input.Password,
 	}
 	_, err := UserModel.CreateUser(&createdUser)
 	if err == nil {
