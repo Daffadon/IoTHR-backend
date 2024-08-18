@@ -26,7 +26,7 @@ type Topic struct {
 	Name       string             `bson:"name" json:"name"`
 	Date       string             `bson:"date" json:"date"`
 	RecordTime string             `bson:"recordTime,omitempty" json:"recordTime,omitempty"`
-	EcgPlot    []float64          `bson:"ecgplot,omitempty" json:"ecgplot,omitempty"`
+	ECGFileId  primitive.ObjectID `bson:"ecgfileId,omitempty" json:"ecgfileId,omitempty"`
 	Analyzed   bool               `bson:"analyzed" json:"analyzed"`
 	Analysis   []struct {
 		DoctorId   primitive.ObjectID `bson:"doctorId" json:"doctorId"`
@@ -55,6 +55,7 @@ func (t Topic) CreateTopic(input *validations.CreateTopicWithUSerIDInput) (*Topi
 		Date:     time.Now().UTC().Local().Format("Monday, 02-01-2006 15:04:05 WIB"),
 		Analyzed: false,
 	}
+
 	result, err := topicCollection.InsertOne(ctx, topic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert topic: %v", err)
@@ -67,32 +68,50 @@ func (t Topic) CreateTopic(input *validations.CreateTopicWithUSerIDInput) (*Topi
 	return &topic, nil
 }
 
-func (t Topic) GetTopicById(input *validations.GetTopicByIdInput) (*Topic, error) {
+func (t Topic) GetTopicById(input *validations.GetTopicByIdInput) (*validations.GetTopicByIDReturn, error) {
 	topicCollection := db.GetTopicCollection()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	var topic Topic
+	var topic validations.TopicVal
 	filter := bson.M{"_id": input.TopicID, "userId": input.UserID}
 	err := topicCollection.FindOne(ctx, filter).Decode(&topic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve topic with ID %v: %v", input.TopicID, err)
 	}
-	return &topic, nil
+	ecgPlots, err := utils.GetECGFileById(topic.ECGFileId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ECG plot: %v", err)
+	}
+	returnedData := &validations.GetTopicByIDReturn{
+		Topic:   topic,
+		ECGPlot: ecgPlots,
+	}
+	return returnedData, nil
 }
 
-func (t Topic) GetTopicByIdForDoctor(input *primitive.ObjectID) (*Topic, error) {
+func (t Topic) GetTopicByIdForDoctor(input *primitive.ObjectID) (*validations.GetTopicByIDReturn, error) {
 	topicCollection := db.GetTopicCollection()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	var topic Topic
+	var topic validations.TopicVal
 	filter := bson.M{"_id": input}
 	err := topicCollection.FindOne(ctx, filter).Decode(&topic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve topic with ID %v: %v", input, err)
 	}
-	return &topic, nil
+	ecgPlots, err := utils.GetECGFileById(topic.ECGFileId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ECG plot: %v", err)
+	}
+
+	returnedData := &validations.GetTopicByIDReturn{
+		Topic:   topic,
+		ECGPlot: ecgPlots,
+	}
+
+	return returnedData, nil
 }
 
 func (t Topic) GetTopicList(input *validations.GetHistoryInput) ([]validations.HistoryReturn, error) {
@@ -252,31 +271,6 @@ func (t Topic) DeleteTopicAnalyzeComment(input *validations.DeleteAnalyzeComment
 	return nil
 }
 
-func (t Topic) UpdateECGdata(input *validations.UpdateECGInput) error {
-	topicCollection := db.GetTopicCollection()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	errChannel := make(chan error)
-	go func() {
-		defer close(errChannel)
-		filter := bson.M{"_id": input.TopicID, "userId": input.UserID}
-		update := bson.M{
-			"$push": bson.M{
-				"ecgplot": bson.M{
-					"$each": input.ECGPlot,
-				},
-			},
-		}
-		_, err := topicCollection.UpdateOne(ctx, filter, update)
-		if err != nil {
-			errChannel <- fmt.Errorf("failed to update ECG data: %v", err)
-			return
-		}
-		errChannel <- nil
-	}()
-	return <-errChannel
-}
-
 func (t Topic) UpdateRecordTime(input *validations.UpdateRecordTimeVal) error {
 	topicCollection := db.GetTopicCollection()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -290,21 +284,38 @@ func (t Topic) UpdateRecordTime(input *validations.UpdateRecordTimeVal) error {
 	return nil
 }
 
+func (t Topic) UpdateECGFileID(input *validations.UpdateECGFileID) error {
+	topicCollection := db.GetTopicCollection()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{"_id": input.TopicID}
+	_, err := topicCollection.UpdateOne(ctx, filter, bson.M{"$set": bson.M{"ecgfileId": input.ECGFileID}})
+	if err != nil {
+		return fmt.Errorf("failed to update ECG file ID: %v", err)
+	}
+	return nil
+}
+
 func (t Topic) ECGPrediction(input *validations.ECGPredictionInput) (*Prediction, error) {
 	topicCollection := db.GetTopicCollection()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	filter := bson.M{"_id": input.TopicID, "userId": input.UserID}
-
 	var topic Topic
 	err := topicCollection.FindOne(ctx, filter).Decode(&topic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve topic with ID %v: %v", input.TopicID, err)
 	}
 
+	ecgPlot, err := utils.GetECGFileById(topic.ECGFileId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ECG plot: %v", err)
+	}
+
 	packet := validations.Payload{
-		ECGPlot: topic.EcgPlot,
+		ECGPlot: ecgPlot,
 		Feature: input.Feature,
 	}
 
