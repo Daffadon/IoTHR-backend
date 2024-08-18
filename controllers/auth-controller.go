@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"IoTHR-backend/models"
 	"IoTHR-backend/utils"
 	"IoTHR-backend/validations"
 	"net/http"
@@ -12,8 +11,6 @@ import (
 )
 
 type AuthController struct{}
-
-var UserModel = new(models.User)
 
 func (auth AuthController) Login(ctx *gin.Context) {
 	var input validations.LoginInput

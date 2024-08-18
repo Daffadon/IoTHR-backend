@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"IoTHR-backend/models"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,8 +8,6 @@ import (
 )
 
 type PredictionController struct{}
-
-var PredictionModel = new(models.Prediction)
 
 func (p PredictionController) GetPredictionList(ctx *gin.Context) {
 	topicId, err := primitive.ObjectIDFromHex(ctx.Param("id"))
