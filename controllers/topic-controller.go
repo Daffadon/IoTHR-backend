@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"IoTHR-backend/models"
 	"IoTHR-backend/validations"
 	"log"
 	"net/http"
@@ -11,8 +10,6 @@ import (
 )
 
 type TopicController struct{}
-
-var TopicModel = new(models.Topic)
 
 func (t TopicController) CreateTopic(ctx *gin.Context) {
 	var input validations.CreateTopicInput
@@ -38,6 +35,14 @@ func (t TopicController) CreateTopic(ctx *gin.Context) {
 			ctx.Abort()
 			return
 		}
+
+		err = ecgController.CreateECGData(&topic.ID)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			ctx.Abort()
+			return
+		}
+
 		ctx.JSON(http.StatusOK, gin.H{"topicId": topic.ID})
 		ctx.Abort()
 		return
@@ -174,20 +179,20 @@ func (t TopicController) DeleteTopicAnalyzeComment(ctx *gin.Context) {
 	ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid topic"})
 }
 
-func (t TopicController) UpdateECGPlotTopic(ctx *gin.Context) {
-	var input validations.InsertECGDataInput
+func (t TopicController) UpdateTopicRecordTime(ctx *gin.Context) {
+	var input validations.UpdateRecordTimeVal
 	userId, ok := ctx.Get("user_id")
 	if ok {
 		if err := ctx.ShouldBindJSON(&input); err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			ctx.Abort()
 		}
-		dataToUpdate := validations.UpdateECGInput{
-			TopicID: input.TopicID,
-			UserID:  userId.(primitive.ObjectID),
-			ECGPlot: input.ECGPlot,
+		newRecordTime := validations.UpdateRecordTimeVal{
+			UserID:     userId.(primitive.ObjectID),
+			TopicID:    input.TopicID,
+			RecordTime: input.RecordTime,
 		}
-		err := TopicModel.UpdateECGdata(&dataToUpdate)
+		err := TopicModel.UpdateRecordTime(&newRecordTime)
 		if err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			ctx.Abort()
@@ -208,16 +213,12 @@ func (t TopicController) PredictionECGPlot(ctx *gin.Context) {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			ctx.Abort()
 		}
-		newRecordTime := &validations.UpdateRecordTimeVal{
-			UserID:     userId.(primitive.ObjectID),
-			TopicID:    input.TopicID,
-			RecordTime: input.RecordTime,
-		}
-		err := TopicModel.UpdateRecordTime(newRecordTime)
+		err := ecgController.ResampleECGData(input.TopicID)
+
 		if err != nil {
+			log.Fatalf("Error resampling ECG data: %v", err)
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			ctx.Abort()
-			return
 		}
 
 		feature := []string{"RR-Interval", "Morphology", "Wavelet"}
@@ -241,4 +242,23 @@ func (t TopicController) PredictionECGPlot(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+}
+
+func (t TopicController) PredictionForWS(topicId, userId primitive.ObjectID) {
+	feature := []string{"RR-Interval", "Morphology", "Wavelet"}
+	for _, f := range feature {
+		dataToPredict := &validations.ECGPredictionInput{
+			TopicID: topicId,
+			UserID:  userId,
+			Feature: f,
+		}
+		prediction, err := TopicModel.ECGPrediction(dataToPredict)
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = PredictionModel.CreatePrediction(prediction)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 }
