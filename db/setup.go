@@ -11,6 +11,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"go.mongodb.org/mongo-driver/mongo/gridfs"
 )
 
 var db *mongo.Client
@@ -84,7 +86,18 @@ func GetTopicCollection() *mongo.Collection {
 func GetPredictionCollection() *mongo.Collection {
 	return db.Database("heartrate").Collection("prediction")
 }
-
+func GetECGCollection() *mongo.Collection {
+	return db.Database("heartrate").Collection("ecg")
+}
+func GetECGFileBucket() *gridfs.Bucket {
+	database := db.Database("heartrate")
+	bucketOpts := options.GridFSBucket().SetName("resampled_ecg_files")
+	bucket, err := gridfs.NewBucket(database, bucketOpts)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return bucket
+}
 func GetDB() *mongo.Client {
 	return db
 }
