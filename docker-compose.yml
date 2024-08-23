@@ -1,22 +1,21 @@
 version: "3.8"
 
 services:
-  # app:
-  #   container_name: backend
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   env_file:
-  #     - ".env"
-  #   networks:
-  #     - backend-network
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     - mongo
-  #     - mongo-express
+  be-app:
+    container_name: backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+      - backend-network
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongo-dev
+      - mongo-express
+    restart: always
 
-  mongo:
+  mongo-dev:
     container_name: mongo-dev
     image: mongo:4.2
     environment:
@@ -25,18 +24,17 @@ services:
       - MONGO_INITDB_DATABASE=${DATABASE}
     networks:
       - backend-network
-    ports:
-      - "27017:27017"
     volumes:
       - ./backend-data:/data/db
       - ./mongod.conf:/etc/mongod.conf
     command: mongod --config /etc/mongod.conf
+    restart: always
 
   mongo-express:
     container_name: mongo-express
     image: mongo-express
     depends_on:
-      - mongo
+      - mongo-dev
     networks:
       - backend-network
     environment:
@@ -55,9 +53,9 @@ services:
       [
         "sh",
         "-c",
-        "chmod +x /app/wait-for-it.sh && /app/wait-for-it.sh mongo:27017 -- /docker-entrypoint.sh",
+        "chmod +x /app/wait-for-it.sh && /app/wait-for-it.sh mongo-dev:27017 -- /docker-entrypoint.sh",
       ]
-
+    restart: always
 networks:
   backend-network:
-    driver: bridge
+    external: true
