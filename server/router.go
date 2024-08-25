@@ -3,21 +3,41 @@ package server
 import (
 	"IoTHR-backend/controllers"
 	"IoTHR-backend/middleware"
+	"fmt"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 func NewRouter() *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)	
 	router := gin.New()
 	health := new(controllers.HealthController)
+	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		Formatter: func(params gin.LogFormatterParams) string {
+			if params.Method == "OPTIONS" {
+				return ""
+			}
+			return fmt.Sprintf("[GIN] %v | %3d | %13v | %15s |%-7s %#v\n%s",
+				params.TimeStamp.Format(time.RFC1123),
+				params.StatusCode,
+				params.Latency,
+				params.ClientIP,
+				params.Method,
+				params.Path,
+				params.ErrorMessage,
+			)
+		},
+		Output: gin.DefaultWriter,
+	}))
 
 	router.Use(middleware.CORSMiddleware())
-	router.Use(gin.Logger())
+	router.Use(middleware.ErrorMiddleware())
 	router.Use(gin.Recovery())
-	webSocket := new(controllers.WebsocketController)
 
+	webSocket := new(controllers.WebsocketController)
 	router.GET("/health", health.Status)
-	router.GET("/ecg", 			webSocket.UpdateECGPlot)
+	router.GET("/ecg", webSocket.UpdateECGPlot)
 
 	v1 := router.Group("/v1")
 	{
@@ -43,6 +63,7 @@ func NewRouter() *gin.Engine {
 			topic.GET("/:id", topicController.GetTopic)
 			topic.POST("/prediction", topicController.PredictionECGPlot)
 			topic.PATCH(("/record-time"), topicController.UpdateTopicRecordTime)
+			topic.DELETE("/:id", topicController.DeleteTopic)
 		}
 		prediction := v1.Group("/prediction")
 		{
