@@ -2,17 +2,19 @@ package models
 
 import (
 	"IoTHR-backend/db"
+	"IoTHR-backend/errors"
 	"IoTHR-backend/validations"
 	"context"
-	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+var errorInstance = new(errors.ErrorInstance)
 
 type User struct {
 	ID        primitive.ObjectID   `json:"id,omitempty" bson:"_id,omitempty"`
@@ -36,22 +38,18 @@ func (u User) CreateUser(input *validations.CreateUserInput) (*User, error) {
 	var existingUser User
 	err := userCollection.FindOne(ctx, filter).Decode(&existingUser)
 	if err == nil {
-		return nil, fmt.Errorf("email already exists")
-	} else if err != mongo.ErrNoDocuments {
-		return nil, err
+		return nil, errorInstance.ReturnError(http.StatusConflict, "User already exists")
 	}
 
 	result, err := userCollection.InsertOne(ctx, user)
-
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert user: %v", err)
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error inserting user")
 	}
 	insertedID, ok := result.InsertedID.(primitive.ObjectID)
 
 	if !ok {
-		return nil, fmt.Errorf("failed to get inserted ID")
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Failed to get inserted ID")
 	}
-
 	user.ID = insertedID
 	return &user, nil
 }
@@ -70,12 +68,12 @@ func (u User) GetUsers() (*[]User, error) {
 
 	cursor, err := userCollection.Find(ctx, bson.M{"role": "user"}, options.Find().SetProjection(projection))
 	if err != nil {
-		return nil, fmt.Errorf("error getting users: %v", err)
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error getting users")
 	}
 
 	var users []User
 	if err = cursor.All(ctx, &users); err != nil {
-		return nil, fmt.Errorf("error decoding users: %v", err)
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error decoding users")
 	}
 	return &users, nil
 }
@@ -89,10 +87,7 @@ func (u User) GetUser(input *validations.LoginInput) (*User, error) {
 	filter := bson.M{"email": input.Email}
 	err := userCollection.FindOne(ctx, filter).Decode(&user)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("user not found")
-		}
-		return nil, err
+		return nil, errorInstance.ReturnError(http.StatusNotFound, "User Not Found")
 	}
 	return &user, nil
 }
@@ -106,10 +101,7 @@ func (u User) GetUserByID(id primitive.ObjectID) (*User, error) {
 	filter := bson.M{"_id": id}
 	err := userCollection.FindOne(ctx, filter).Decode(&user)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("user not found")
-		}
-		return nil, err
+		return nil, errorInstance.ReturnError(http.StatusNotFound, "User Not Found")
 	}
 	return &user, nil
 }
@@ -121,10 +113,9 @@ func (u User) UpdateTokenToUser(userid primitive.ObjectID, token string) error {
 
 	filter := bson.M{"_id": userid}
 	update := bson.M{"$set": bson.M{"token": token}}
-
 	_, err := userCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return fmt.Errorf("error updating user token: %v", err)
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error updating user token")
 	}
 	return nil
 }
@@ -139,11 +130,40 @@ func (u User) RemoveToken(input *validations.LogoutInput) error {
 
 	result, err := userCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return fmt.Errorf("error updating user token: %v", err)
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error updating user token")
 	}
 
 	if result.ModifiedCount == 0 {
-		return fmt.Errorf("user not found or token already removed")
+		return errorInstance.ReturnError(http.StatusNotFound, "User not found or token already removed")
+	}
+	return nil
+}
+func (u User) UpdateTopicID(userid primitive.ObjectID, topicid primitive.ObjectID) error {
+	userCollection := db.GetUserCollection()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{"_id": userid}
+	update := bson.M{"$push": bson.M{"topicId": topicid}}
+
+	_, err := userCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error updating user topicId")
+	}
+	return nil
+}
+
+func (u User) DeleteTopicID(topicId primitive.ObjectID) error {
+	userCollection := db.GetUserCollection()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{"topicId": topicId}
+	update := bson.M{"$pull": bson.M{"topicId": topicId}}
+
+	_, err := userCollection.UpdateMany(ctx, filter, update)
+	if err != nil {
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error deleting user topicId")
 	}
 	return nil
 }
@@ -160,19 +180,4 @@ func (u User) IsLoggedOut(token string) bool {
 		return false
 	}
 	return count > 0
-}
-
-func (u User) UpdateTopicID(userid primitive.ObjectID, topicid primitive.ObjectID) error {
-	userCollection := db.GetUserCollection()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	filter := bson.M{"_id": userid}
-	update := bson.M{"$push": bson.M{"topicId": topicid}}
-
-	_, err := userCollection.UpdateOne(ctx, filter, update)
-	if err != nil {
-		return fmt.Errorf("error updating user topicId: %v", err)
-	}
-	return nil
 }
