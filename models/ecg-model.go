@@ -6,6 +6,7 @@ import (
 	"IoTHR-backend/validations"
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -107,32 +108,29 @@ func (e ECG) ECGMergePlot(TopicId primitive.ObjectID) ([]float64, error) {
 			},
 		},
 	}
-
 	cursor, err := ecgCollection.Aggregate(ctx, pipeline)
 	if err != nil {
-		return nil, fmt.Errorf("failed to aggregate ECG data: %v", err)
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error aggregating ECG data")
 	}
 
 	var results []bson.M
 	if err := cursor.All(ctx, &results); err != nil {
-		return nil, fmt.Errorf("failed to decode ECG data: %v", err)
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error decoding ECG data")
 	}
-
+	if len(results) == 0 {
+		return nil, errorInstance.ReturnError(http.StatusNotFound, "Recorded data not found")
+	}
 	ecgPlots := results[0]
 	rawEcgPlotData, exists := ecgPlots["ecgplot"]
 	if !exists {
-		fmt.Println("Error: ecgplot data not found.")
-		return nil, fmt.Errorf("ecgplot data not found")
+		return nil, errorInstance.ReturnError(http.StatusNotFound, "ECG data not found")
 	}
 
-	// Attempt to cast the raw data to []interface{}
 	ecgPlotData, ok := rawEcgPlotData.(primitive.A)
 	if !ok {
-		fmt.Println("Error: ecgplot data is not in the expected format.")
-		return nil, fmt.Errorf("invalid ecgplot format")
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Invalid ecgplot format")
 	}
 
-	// Convert []interface{} to []float64 or []int
 	var ecgPlotFloats []float64
 	for _, v := range ecgPlotData {
 		switch val := v.(type) {
@@ -141,8 +139,7 @@ func (e ECG) ECGMergePlot(TopicId primitive.ObjectID) ([]float64, error) {
 		case float64:
 			ecgPlotFloats = append(ecgPlotFloats, val)
 		default:
-			fmt.Println("Error: ecgplot contains unsupported value types.")
-			return nil, fmt.Errorf("ecgplot contains unsupported value types")
+			return nil, errorInstance.ReturnError(http.StatusInternalServerError, "ecgplot contains unsupported value types")
 		}
 	}
 

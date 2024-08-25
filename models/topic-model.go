@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -17,7 +16,6 @@ import (
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type Topic struct {
@@ -44,9 +42,7 @@ func (t Topic) CreateTopic(input *validations.CreateTopicWithUSerIDInput) (*Topi
 	var existingUser User
 	err := topicCollection.FindOne(ctx, filter).Decode(&existingUser)
 	if err == nil {
-		return nil, fmt.Errorf("Topic already exists")
-	} else if err != mongo.ErrNoDocuments {
-		return nil, err
+		return nil, errorInstance.ReturnError(http.StatusConflict, "Topic already exists")
 	}
 
 	topic := Topic{
@@ -58,11 +54,11 @@ func (t Topic) CreateTopic(input *validations.CreateTopicWithUSerIDInput) (*Topi
 
 	result, err := topicCollection.InsertOne(ctx, topic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert topic: %v", err)
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error inserting topic")
 	}
 	insertedID, ok := result.InsertedID.(primitive.ObjectID)
 	if !ok {
-		return nil, fmt.Errorf("failed to get inserted ID")
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Failed to get inserted ID")
 	}
 	topic.ID = insertedID
 	return &topic, nil
@@ -77,11 +73,15 @@ func (t Topic) GetTopicById(input *validations.GetTopicByIdInput) (*validations.
 	filter := bson.M{"_id": input.TopicID, "userId": input.UserID}
 	err := topicCollection.FindOne(ctx, filter).Decode(&topic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve topic with ID %v: %v", input.TopicID, err)
+		return nil, errorInstance.ReturnError(http.StatusNotFound, "Topic not found")
 	}
+	if topic.ECGFileId.IsZero() {
+		return nil, errorInstance.ReturnError(http.StatusNotFound, "Recorded File Not Found	")
+	}
+
 	ecgPlots, err := utils.GetECGFileById(topic.ECGFileId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ECG plot: %v", err)
+		return nil, err
 	}
 	returnedData := &validations.GetTopicByIDReturn{
 		Topic:   topic,
@@ -99,11 +99,11 @@ func (t Topic) GetTopicByIdForDoctor(input *primitive.ObjectID) (*validations.Ge
 	filter := bson.M{"_id": input}
 	err := topicCollection.FindOne(ctx, filter).Decode(&topic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve topic with ID %v: %v", input, err)
+		return nil, errorInstance.ReturnError(http.StatusNotFound, "Topic not found")
 	}
 	ecgPlots, err := utils.GetECGFileById(topic.ECGFileId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ECG plot: %v", err)
+		return nil, err
 	}
 
 	returnedData := &validations.GetTopicByIDReturn{
@@ -124,8 +124,7 @@ func (t Topic) GetTopicList(input *validations.GetHistoryInput) ([]validations.H
 		var topic Topic
 		err := topicCollection.FindOne(ctx, bson.M{"_id": topicID}).Decode(&topic)
 		if err != nil {
-			fmt.Print(err)
-			return nil, fmt.Errorf("failed to retrieve topic with ID %v: %v", topicID, err)
+			return nil, errorInstance.ReturnError(http.StatusNotFound, "Topic not found")
 		}
 		toInsert := validations.HistoryReturn{
 			TopicId:   topic.ID,
@@ -147,7 +146,7 @@ func (t Topic) GetUserTopicList(input []primitive.ObjectID) ([]validations.UserH
 		var topic Topic
 		err := topicCollection.FindOne(ctx, bson.M{"_id": topicID}).Decode(&topic)
 		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve topic with ID %v: %v", topicID, err)
+			return nil, errorInstance.ReturnError(http.StatusNotFound, "Topic not found")
 		}
 		toInsert := validations.UserHistoryReturn{
 			TopicId:    topic.ID,
@@ -175,7 +174,7 @@ func (t Topic) UpdateTopicAnalyzeData(input *validations.UpdateAnalyzeData) erro
 	filter := bson.M{"_id": input.TopicID}
 	_, err := topicCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return fmt.Errorf("failed to update topic: %v", err)
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error updating topic")
 	}
 	return nil
 }
@@ -188,7 +187,7 @@ func (t Topic) UpdateTopicAnalyzeComment(input *validations.UpdateAnalyzeComment
 	existingAnalysis := bson.M{"analysis.doctorId": input.DoctorID}
 	count, err := topicCollection.CountDocuments(ctx, existingAnalysis)
 	if err != nil {
-		return fmt.Errorf("failed to check if doctorId already exists: %v", err)
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error checking if doctorId already exists")
 	}
 	if count > 0 {
 		update := bson.M{
@@ -201,7 +200,7 @@ func (t Topic) UpdateTopicAnalyzeComment(input *validations.UpdateAnalyzeComment
 		filter := bson.M{"_id": input.TopicID, "analysis.doctorId": input.DoctorID}
 		_, err := topicCollection.UpdateOne(ctx, filter, update)
 		if err != nil {
-			return fmt.Errorf("failed to update topic: %v", err)
+			return errorInstance.ReturnError(http.StatusInternalServerError, "Error updating topic")
 		}
 		return nil
 	}
@@ -224,7 +223,7 @@ func (t Topic) UpdateTopicAnalyzeComment(input *validations.UpdateAnalyzeComment
 		filter := bson.M{"_id": input.TopicID}
 		_, err := topicCollection.UpdateOne(ctx, filter, update)
 		if err != nil {
-			return fmt.Errorf("failed to update topic: %v", err)
+			return errorInstance.ReturnError(http.StatusInternalServerError, "Error updating topic")
 		}
 	}
 	return nil
@@ -239,12 +238,12 @@ func (t Topic) DeleteTopicAnalyzeComment(input *validations.DeleteAnalyzeComment
 	update := bson.M{"$unset": bson.M{"analysis.$.comment." + fmt.Sprint(input.CommentIndex): ""}}
 	_, err := topicCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return err
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error deleting comment")
 	}
-	err = utils.CleanupComment(input.DoctorID)
 
+	err = utils.CleanupComment(input.DoctorID)
 	if err != nil {
-		return fmt.Errorf("failed to cleanup comment: %v", err)
+		return err
 	}
 
 	var count int64
@@ -255,7 +254,7 @@ func (t Topic) DeleteTopicAnalyzeComment(input *validations.DeleteAnalyzeComment
 
 	count, err = topicCollection.CountDocuments(ctx, countFilter)
 	if err != nil {
-		return err
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error counting comments")
 	}
 
 	if count == 0 {
@@ -264,10 +263,9 @@ func (t Topic) DeleteTopicAnalyzeComment(input *validations.DeleteAnalyzeComment
 		}
 		_, err = topicCollection.UpdateMany(ctx, removeFilter, bson.M{"$pull": bson.M{"analysis": bson.M{"doctorId": input.DoctorID}}})
 		if err != nil {
-			return err
+			return errorInstance.ReturnError(http.StatusInternalServerError, "Error removing doctor from analysis")
 		}
 	}
-
 	return nil
 }
 
@@ -279,7 +277,7 @@ func (t Topic) UpdateRecordTime(input *validations.UpdateRecordTimeVal) error {
 	filter := bson.M{"_id": input.TopicID, "userId": input.UserID}
 	_, err := topicCollection.UpdateOne(ctx, filter, bson.M{"$set": bson.M{"recordTime": input.RecordTime}})
 	if err != nil {
-		return fmt.Errorf("failed to update record time: %v", err)
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error updating record time")
 	}
 	return nil
 }
@@ -292,7 +290,20 @@ func (t Topic) UpdateECGFileID(input *validations.UpdateECGFileID) error {
 	filter := bson.M{"_id": input.TopicID}
 	_, err := topicCollection.UpdateOne(ctx, filter, bson.M{"$set": bson.M{"ecgfileId": input.ECGFileID}})
 	if err != nil {
-		return fmt.Errorf("failed to update ECG file ID: %v", err)
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error updating ECG file ID")
+	}
+	return nil
+}
+
+func (t Topic) DeleteTopic(topicId primitive.ObjectID) error {
+	topicCollection := db.GetTopicCollection()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{"_id": topicId}
+	_, err := topicCollection.DeleteOne(ctx, filter)
+	if err != nil {
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error deleting topic")
 	}
 	return nil
 }
@@ -306,12 +317,12 @@ func (t Topic) ECGPrediction(input *validations.ECGPredictionInput) (*Prediction
 	var topic Topic
 	err := topicCollection.FindOne(ctx, filter).Decode(&topic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve topic with ID %v: %v", input.TopicID, err)
+		return nil, errorInstance.ReturnError(http.StatusNotFound, "Topic not found")
 	}
 
 	ecgPlot, err := utils.GetECGFileById(topic.ECGFileId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ECG plot: %v", err)
+		return nil, err
 	}
 
 	packet := validations.Payload{
@@ -321,7 +332,7 @@ func (t Topic) ECGPrediction(input *validations.ECGPredictionInput) (*Prediction
 
 	jsondata, err := json.Marshal(packet)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal data: %v", err)
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error marshalling data")
 	}
 
 	if err := godotenv.Load(); err != nil {
@@ -330,12 +341,12 @@ func (t Topic) ECGPrediction(input *validations.ECGPredictionInput) (*Prediction
 
 	resp, err := http.Post(os.Getenv("MODEL_URL"), "application/json", bytes.NewBuffer(jsondata))
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error sending request")
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Error reading response body: %v", err)
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error reading response body")
 	}
 
 	var predictionResult struct {
@@ -353,7 +364,7 @@ func (t Topic) ECGPrediction(input *validations.ECGPredictionInput) (*Prediction
 
 	err = json.Unmarshal(body, &predictionResult)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal prediction result: %v", err)
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error unmarshalling data")
 	}
 
 	createPrediction := &Prediction{

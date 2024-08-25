@@ -3,6 +3,7 @@ package utils
 import (
 	"IoTHR-backend/db"
 	"context"
+	"net/http"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -13,7 +14,7 @@ func CleanupComment(doctorId primitive.ObjectID) error {
 	topicCollection := db.GetTopicCollection()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	
+
 	var doc struct {
 		Analysis []struct {
 			DoctorId   primitive.ObjectID `bson:"doctorId" json:"doctorId"`
@@ -25,7 +26,7 @@ func CleanupComment(doctorId primitive.ObjectID) error {
 	filter := bson.M{"analysis.doctorId": doctorId}
 	err := topicCollection.FindOne(ctx, filter).Decode(&doc)
 	if err != nil {
-		return err
+		return errorInstance.ReturnError(http.StatusNotFound, "Doctor not found")
 	}
 
 	updatedAnalysis := make([]struct {
@@ -58,10 +59,10 @@ func CleanupComment(doctorId primitive.ObjectID) error {
 	}
 
 	update := bson.M{"$set": bson.M{"analysis": updatedAnalysis}}
+
 	_, err = topicCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return err
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error updating comment")
 	}
-
 	return nil
 }

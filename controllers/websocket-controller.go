@@ -32,19 +32,18 @@ func (w WebsocketController) UpdateECGPlot(c *gin.Context) {
 	conn, err := websocket.Accept(c.Writer, c.Request, opts)
 	if err != nil {
 		log.Println("Error accepting WebSocket connection:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to accept WebSocket connection"})
+		c.Error(errorInstance.ReturnError(http.StatusInternalServerError, "Failed to accept WebSocket connection"))
 		return
 	}
 
 	defer conn.Close(websocket.StatusInternalError, "Connection closed with error")
-
 	log.Println("WebSocket connection established")
 
 	for {
-		var msg Message
 
+		var msg Message
 		if err := wsjson.Read(ctx, conn, &msg); err != nil {
-			log.Fatalln("Error reading message:", err)
+			log.Println("Error reading message:", err)
 			return
 		}
 		if msg.Type == "close" {
@@ -73,7 +72,7 @@ func (w WebsocketController) UpdateECGPlot(c *gin.Context) {
 
 		err = wsjson.Write(ctx, conn, sequence)
 		if err != nil {
-			log.Fatalln("Error sending message:", err)
+			log.Println("Error sending message:", err)
 			return
 		}
 	}

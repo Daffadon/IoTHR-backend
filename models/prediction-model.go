@@ -4,6 +4,7 @@ import (
 	"IoTHR-backend/db"
 	"IoTHR-backend/validations"
 	"context"
+	"net/http"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -45,7 +46,7 @@ func (p Prediction) CreatePrediction(input *Prediction) (*primitive.ObjectID, er
 	defer cancel()
 	result, err := predictionCollection.InsertOne(ctx, input)
 	if err != nil {
-		return nil, err
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error inserting prediction")
 	}
 
 	id := result.InsertedID.(primitive.ObjectID)
@@ -56,10 +57,11 @@ func (p Prediction) GetPredictionByTopicId(input *primitive.ObjectID) (*[]valida
 	predictionCollection := db.GetPredictionCollection()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
 	filter := bson.M{"topicId": input}
 	cursor, err := predictionCollection.Find(ctx, filter)
 	if err != nil {
-		return nil, err
+		return nil, errorInstance.ReturnError(http.StatusInternalServerError, "Error fetching prediction")
 	}
 	var predictions []validations.PredictionListReturn
 	for cursor.Next(ctx) {
@@ -82,7 +84,7 @@ func (p Prediction) GetPredictionByPredictionId(input *primitive.ObjectID) (*Pre
 	var prediction Prediction
 	err := predictionCollection.FindOne(ctx, filter).Decode(&prediction)
 	if err != nil {
-		return nil, err
+		return nil, errorInstance.ReturnError(http.StatusNotFound, "Prediction not found")
 	}
 	return &prediction, nil
 

@@ -3,6 +3,7 @@ package controllers
 import (
 	"IoTHR-backend/utils"
 	"IoTHR-backend/validations"
+	"net/http"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -15,7 +16,7 @@ func (e ECGController) CreateECGData(TopicId *primitive.ObjectID) error {
 	}
 	err := ECGModel.CreateECGData(ecgData)
 	if err != nil {
-		return err
+		return errorInstance.ReturnError(http.StatusInternalServerError, "Error creating ECG data")
 	}
 	return nil
 }
