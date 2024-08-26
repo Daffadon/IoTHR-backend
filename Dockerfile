@@ -1,5 +1,4 @@
-# Use the official Go image as the base image
-FROM golang:1.22.5-alpine3.19
+FROM golang:1.22.5-alpine3.19 AS builder
 
 WORKDIR /app
 
@@ -9,5 +8,13 @@ RUN go mod download && go mod verify
 
 COPY . .
 RUN go build -o app
+
+FROM alpine:latest
+
+WORKDIR /app
+
+COPY --from=builder /app/app /app
+COPY --from=builder /app/.env /app
+
 EXPOSE 8000
 CMD ["./app"]

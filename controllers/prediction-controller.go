@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"IoTHR-backend/models"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,38 +9,36 @@ import (
 
 type PredictionController struct{}
 
-var PredictionModel = new(models.Prediction)
-
 func (p PredictionController) GetPredictionList(ctx *gin.Context) {
 	topicId, err := primitive.ObjectIDFromHex(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		ctx.Abort()
+		ctx.Error(errorInstance.ReturnError(http.StatusBadRequest, "Invalid topic ID"))
 		return
 	}
 	predictions, err := PredictionModel.GetPredictionByTopicId(&topicId)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		ctx.Abort()
+		ctx.Error(err)
 		return
 	}
-	ctx.JSON(200, gin.H{"data": predictions})
+	if len(*predictions) == 0 {
+		ctx.Error(errorInstance.ReturnError(http.StatusNotFound, "Prediction not found"))
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"data": predictions})
 	ctx.Abort()
 }
 
 func (p PredictionController) GetPredictionById(ctx *gin.Context) {
 	predictionId, err := primitive.ObjectIDFromHex(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		ctx.Abort()
+		ctx.Error(errorInstance.ReturnError(http.StatusBadRequest, "Invalid prediction ID"))
 		return
 	}
 	prediction, err := PredictionModel.GetPredictionByPredictionId(&predictionId)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		ctx.Abort()
+		ctx.Error(err)
 		return
 	}
-	ctx.JSON(200, gin.H{"data": prediction})
+	ctx.JSON(http.StatusOK, gin.H{"data": prediction})
 	ctx.Abort()
 }

@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"IoTHR-backend/errors"
+	"net/http"
 	"os"
 	"time"
 
@@ -10,6 +12,8 @@ import (
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+var errorInstance = new(errors.ErrorInstance)
 
 type Claims struct {
 	UserId primitive.ObjectID `json:"userId"`
@@ -44,13 +48,10 @@ func ValidateJWT(tokenStr string) (*Claims, error) {
 		return jwtKey, nil
 	})
 	if err != nil {
-		if err == jwt.ErrSignatureInvalid {
-			return nil, err
-		}
-		return nil, err
+		return nil, errorInstance.ReturnError(http.StatusUnauthorized, "Unauthorized")
 	}
 	if !token.Valid {
-		return nil, err
+		return nil, errorInstance.ReturnError(http.StatusUnauthorized, "Unauthorized")
 	}
 	return claims, nil
 }
